@@ -28,6 +28,11 @@ MINI_APP_URL: str = (
     os.environ.get("MINI_APP_URL", "").rstrip("/")
     or emailcfg.PUBLIC_API_BASE.rstrip("/")
 )
+logger.info(f"[mini-app-url] MINI_APP_URL={MINI_APP_URL!r} (from env={os.environ.get('MINI_APP_URL','')!r} PUBLIC_API_BASE={emailcfg.PUBLIC_API_BASE!r})")
+if not MINI_APP_URL:
+    logger.error("[mini-app-url] MINI_APP_URL is EMPTY — button will be plain URL, sendData() will NOT work!")
+elif not MINI_APP_URL.startswith("https://"):
+    logger.error(f"[mini-app-url] MINI_APP_URL must start with https:// — got {MINI_APP_URL!r}")
 
 # ── Import copy ───────────────────────────────────────────────────────────────
 from messages import (
