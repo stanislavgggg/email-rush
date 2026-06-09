@@ -1,206 +1,186 @@
 """
-copy_cherry.py — копирайт бренда Cherry Rush (азартный слот-вайб + live score, режим КАНАЛ)
-============================================================================================
-Цель воронки: ПОДПИСКА на Telegram-канал. Не продукт, не ставки.
-Персона: «Ruby» + команда из трёх вишен 🍒🍒🍒. Тон бодрый, lucky-streak флёр.
+copy_cherry.py — Cherry Rush (email-capture focus)
+===================================================
+Цель воронки: сбор EMAIL через мини-апп.
+Персона: «Ruby» + команда из трёх вишен 🍒🍒🍒.
 
-⚠️ TELEGRAM ADS COMPLIANCE (строго):
-- «lucky/jackpot» — только ФЛЁР про горячие НОВОСТИ, не реальный азарт;
-- только новости и счёт; никаких фин/беттинг-советов;
-- не зовём ставить/депозитить/покупать/продавать;
-- НИКОГДА не обещаем выигрыш/джекпот/прибыль/доход.
+⚠️ TELEGRAM ADS COMPLIANCE:
+- Только новости и данные; никаких фин/беттинг-советов.
+- Не зовём ставить / депозитить / покупать / продавать.
+- Никогда не обещаем выигрыш / прибыль / доход.
 
-Языки: en (дефолт), ru, es. {url} в CTA_REGISTER = ссылка на канал.
+Языки: en (дефолт), ru, es.
 """
-from config import CHANNEL_HANDLE
-
-_RAW_HANDLE = CHANNEL_HANDLE or "@your_channel"
-CH = _RAW_HANDLE.replace("_", "\\_")
 
 HOOK_CAPTION = {
     "en": (
-        "🍒 *Cherry Rush — hot drops & live scores*\n\n"
-        "I'm Ruby, with the Cherry crew 🍒🍒🍒. We line up the freshest headlines and live "
-        "scores so you hit the good stuff first:\n\n"
-        "• 🍒 breaking drops across crypto, markets, esports & football\n"
-        "• 🔴 live scores in real time\n"
-        "• ⚡ first alerts before the crowd\n\n"
-        "Pure news — no advice, no promises.\n\nWhich topics should we line up for you?"
+        "🍒 *Cherry Rush — hot drops, straight to your inbox*\n\n"
+        "I'm Ruby, with the Cherry crew 🍒🍒🍒.\n"
+        "We send the freshest headlines, live scores and promos "
+        "straight to your email — nothing you didn't ask for.\n\n"
+        "✨ Early market moves and odds shifts\n"
+        "🎮 Live match and tournament alerts\n"
+        "📊 Quick charts & bite-size insights\n"
+        "🎁 Members-only promos you won't find on site\n\n"
+        "Which topics should we send you?"
     ),
     "ru": (
-        "🍒 *Cherry Rush — горячие новости и live-счёт*\n\n"
-        "Я Ruby, со мной команда вишен 🍒🍒🍒. Выстраиваем самые свежие заголовки и счёт, "
-        "чтобы ты ловил лучшее первым:\n\n"
-        "• 🍒 свежие дропы по крипте, рынкам, киберспорту и футболу\n"
-        "• 🔴 счёт в реальном времени\n"
-        "• ⚡ первые алерты раньше всех\n\n"
-        "Чистые новости — без советов и обещаний.\n\nКакие темы выстроить для тебя?"
+        "🍒 *Cherry Rush — горячие дропы прямо на почту*\n\n"
+        "Я Ruby, со мной команда вишен 🍒🍒🍒.\n"
+        "Отправляем свежие заголовки, live-счёт и промо "
+        "прямо на email — только то, что ты выбрал.\n\n"
+        "✨ Ранние движения рынка и изменения коэффициентов\n"
+        "🎮 Алерты по live-матчам и турнирам\n"
+        "📊 Быстрые графики и короткие инсайты\n"
+        "🎁 Эксклюзивные промо только для подписчиков\n\n"
+        "Какие темы отправлять тебе?"
     ),
     "es": (
-        "🍒 *Cherry Rush — novedades calientes y resultados en vivo*\n\n"
-        "Soy Ruby, con la banda de cerezas 🍒🍒🍒. Alineamos los titulares más frescos y los "
-        "resultados para que agarres lo bueno primero:\n\n"
-        "• 🍒 novedades de cripto, mercados, esports y fútbol\n"
-        "• 🔴 resultados en vivo en tiempo real\n"
-        "• ⚡ primeras alertas antes que nadie\n\n"
-        "Solo noticias — sin consejos ni promesas.\n\n¿Qué temas alineamos para vos?"
+        "🍒 *Cherry Rush — novedades calientes, directo a tu email*\n\n"
+        "Soy Ruby, con la banda de cerezas 🍒🍒🍒.\n"
+        "Enviamos los titulares más frescos, resultados en vivo y promos "
+        "directo a tu email — nada que no pediste.\n\n"
+        "✨ Movimientos de mercado y cambios de cuotas antes que nadie\n"
+        "🎮 Alertas de partidos en vivo y torneos\n"
+        "📊 Gráficos rápidos e insights en pocas palabras\n"
+        "🎁 Promos exclusivos solo para suscriptores\n\n"
+        "¿Qué temas te enviamos?"
     ),
 }
-
-WARMUP_FOOTBALL = {
-    "en": [
-        "🍒 The drop that lights up a feed usually lands here first.",
-        "🔴 Live scores update in real time, no refresh needed.",
-        "⚡ Crypto, markets, esports, football — all the hot ones, one feed.",
-    ],
-    "ru": [
-        "🍒 Дроп, который зажигает ленту, обычно прилетает сюда первым.",
-        "🔴 Live-счёт обновляется в реальном времени, без перезагрузки.",
-        "⚡ Крипта, рынки, киберспорт, футбол — все горячие, одна лента.",
-    ],
-    "es": [
-        "🍒 La novedad que enciende un feed suele caer acá primero.",
-        "🔴 Los resultados en vivo se actualizan en tiempo real.",
-        "⚡ Cripto, mercados, esports, fútbol — todas las calientes, un feed.",
-    ],
-}
-WARMUP_ESPORTS = WARMUP_FOOTBALL
 
 BRIDGE = {
     "en": (
-        "🔑 *Where the full feed drops*\n\n"
-        f"The complete feed — instant breaking drops and live-score pushes — runs in the {CH} channel.\n\n"
+        "🔑 *Get the full feed by email — free*\n\n"
+        "Pick your topics, drop your email, done.\n"
+        "You'll get breaking drops and live-score alerts the moment they happen.\n\n"
         "• 🍒 every drop the moment it lands\n"
-        "• 🔴 live-score pings for matches you follow\n"
-        "• ⚡ first alerts before the crowd\n\n"
-        "It's free, and it's news — not advice. Want the link?"
+        "• 🔴 live-score alerts for matches you follow\n"
+        "• ⚡ first to know, always\n\n"
+        "18+ · News only — not financial or betting advice."
     ),
     "ru": (
-        "🔑 *Где сыплется полный фид*\n\n"
-        f"Полная лента — мгновенные дропы и пуши со счётом — идёт в канале {CH}.\n\n"
+        "🔑 *Полный фид на почту — бесплатно*\n\n"
+        "Выбери темы, укажи email — готово.\n"
+        "Получишь мгновенные дропы и алерты со счётом в момент события.\n\n"
         "• 🍒 каждый дроп в момент выхода\n"
-        "• 🔴 пинги со счётом по матчам, за которыми следишь\n"
-        "• ⚡ первые алерты раньше толпы\n\n"
-        "Бесплатно, и это новости — не советы. Скинуть ссылку?"
+        "• 🔴 алерты со счётом по матчам, за которыми следишь\n"
+        "• ⚡ всегда первый\n\n"
+        "18+ · Только новости — не беттинг/финансовый совет."
     ),
     "es": (
-        "🔑 *Dónde cae el feed completo*\n\n"
-        f"El feed completo — novedades instantáneas y avisos de resultados — corre en el canal {CH}.\n\n"
+        "🔑 *Feed completo por email — gratis*\n\n"
+        "Elegí tus temas, dejá tu email, listo.\n"
+        "Recibís novedades y alertas de resultados al instante.\n\n"
         "• 🍒 cada novedad al instante\n"
-        "• 🔴 avisos de resultados de los partidos que seguís\n"
-        "• ⚡ primeras alertas antes que el resto\n\n"
-        "Es gratis, y son noticias — no consejos. ¿Te paso el link?"
+        "• 🔴 alertas de resultados de los partidos que seguís\n"
+        "• ⚡ siempre el primero en saber\n\n"
+        "18+ · Solo noticias — sin consejos financieros ni de apuestas."
     ),
 }
 
 CTA_REGISTER = {
     "en": (
-        "👇 *Subscribe to the channel — free*\n\n{url}\n\n"
-        "Turn on notifications and catch every drop and live score the moment it lands. "
+        "👇 *Subscribe — free*\n\n"
+        "Open the app, pick your topics and drop your email.\n"
         "News only — no advice, no promises. 🍒"
     ),
     "ru": (
-        "👇 *Подписывайся на канал — бесплатно*\n\n{url}\n\n"
-        "Включи уведомления — лови каждый дроп и счёт в момент события. "
+        "👇 *Подпишись — бесплатно*\n\n"
+        "Открой приложение, выбери темы и укажи email.\n"
         "Только новости — без советов и обещаний. 🍒"
     ),
     "es": (
-        "👇 *Suscribite al canal — gratis*\n\n{url}\n\n"
-        "Activá notificaciones y agarrá cada novedad y resultado al instante. "
+        "👇 *Suscribite — gratis*\n\n"
+        "Abrí la app, elegí tus temas y dejá tu email.\n"
         "Solo noticias — sin consejos ni promesas. 🍒"
     ),
 }
 
 FTD_CELEBRATION = {
-    "en": "🍒 *You're in*\n\nNotifications on so you don't miss a single drop or live-score push.",
-    "ru": "🍒 *Ты в деле*\n\nУведомления включены — не пропустишь ни одного дропа и пуша со счётом.",
-    "es": "🍒 *Estás adentro*\n\nNotificaciones activadas para no perderte ninguna novedad ni resultado.",
+    "en": "🍒 *You're in!*\n\nCheck your inbox — the first drop is already on its way.",
+    "ru": "🍒 *Ты в деле!*\n\nПроверь почту — первый дроп уже летит.",
+    "es": "🍒 *¡Ya estás adentro!*\n\nRevisá tu inbox — el primer drop ya está en camino.",
 }
 
 REPEAT_PUSH = {
-    "en": ["🍒 Today's hottest drops are live in the channel.",
-           "🔴 Live scores are rolling — check the channel.",
-           "⚡ Notifications off? That's how you miss the hot ones."],
-    "ru": ["🍒 Самые горячие дропы дня уже в канале.",
-           "🔴 Live-счёт идёт — загляни в канал.",
-           "⚡ Уведомления выключены? Так и теряются горячие."],
-    "es": ["🍒 Las novedades más calientes del día están en el canal.",
-           "🔴 Los resultados en vivo están corriendo — mirá el canal.",
-           "⚡ ¿Notificaciones apagadas? Así te perdés las calientes."],
+    "en": ["🍒 Today's hottest drops are already in your inbox."],
+    "ru": ["🍒 Самые горячие дропы дня уже в твоей почте."],
+    "es": ["🍒 Las novedades más calientes del día ya están en tu inbox."],
 }
 
 BARRIER_FALLBACK = {
     "en": {
-        "no_trust": "Fair. Open the channel and read a few posts first — no signup, judge the feed yourself.",
-        "not_urgent": "No rush. The channel's free and drops are time-sensitive — that's the only catch.",
+        "no_trust": "Fair. Open the app and see what we cover first — no signup needed to browse.",
+        "not_urgent": "No rush. Just know the drops are time-sensitive — that's the only catch.",
         "thinking": "Take your time. Which topics are you most into — crypto, markets, esports or football?",
     },
     "ru": {
-        "no_trust": "Справедливо. Открой канал и почитай пару постов — без регистрации, оцени ленту сам.",
-        "not_urgent": "Без спешки. Канал бесплатный, а дропы привязаны ко времени — единственный нюанс.",
-        "thinking": "Подумай спокойно. Какие темы тебе ближе — крипта, рынки, киберспорт или футбол?",
+        "no_trust": "Справедливо. Открой приложение и посмотри, что мы освещаем — без регистрации.",
+        "not_urgent": "Без спешки. Просто знай, что дропы привязаны ко времени — единственный нюанс.",
+        "thinking": "Подумай спокойно. Какие темы ближе — крипта, рынки, киберспорт или футбол?",
     },
     "es": {
-        "no_trust": "Válido. Abrí el canal y leé algunos posts — sin registro, juzgá el feed vos mismo.",
-        "not_urgent": "Sin apuro. El canal es gratis y las novedades dependen del tiempo — ese es el único detalle.",
+        "no_trust": "Válido. Abrí la app y mirá qué cubrimos — sin registro para navegar.",
+        "not_urgent": "Sin apuro. Solo tené en cuenta que las novedades son tiempo-dependientes.",
         "thinking": "Tomate tu tiempo. ¿Qué temas te interesan más — cripto, mercados, esports o fútbol?",
     },
 }
 
 GENERIC_FALLBACK = {
-    "en": "🍒 Lining up the latest drops — one sec.",
-    "ru": "🍒 Выстраиваю свежие дропы — секунду.",
-    "es": "🍒 Alineando las últimas novedades — un segundo.",
+    "en": "🍒 Tap the button below to subscribe and get the full feed by email.",
+    "ru": "🍒 Нажми кнопку ниже, чтобы подписаться и получать полный фид на почту.",
+    "es": "🍒 Tocá el botón para suscribirte y recibir el feed completo por email.",
 }
 
 FTD_CONFIRM_PROMPT = {
-    "en": "Subscribed? Say yes and I'll line up today's hottest drops.",
-    "ru": "Подписался? Скажи «да» — и выстрою главные дропы дня.",
-    "es": "¿Te suscribiste? Decí sí y alineo las novedades top de hoy.",
+    "en": "Subscribed? Check your inbox — confirmation is on its way.",
+    "ru": "Подписался? Проверь почту — письмо уже летит.",
+    "es": "¿Te suscribiste? Revisá tu inbox — el correo ya está en camino.",
 }
 
 MORNING_DIGEST_HEADER = {
-    "en": "📅 *Good morning — today's fixtures*\n\n",
-    "ru": "📅 *Доброе утро — матчи на сегодня*\n\n",
-    "es": "📅 *Buen día — los partidos de hoy*\n\n",
+    "en": "📅 *Good morning — today's top drops*\n\n",
+    "ru": "📅 *Доброе утро — главные дропы дня*\n\n",
+    "es": "📅 *Buen día — los drops top de hoy*\n\n",
 }
 MORNING_DIGEST_FOOTER = {
-    "en": f"\n\n🍒 Live-score pushes + full feed — in the channel {CH}.",
-    "ru": f"\n\n🍒 Пуши со счётом + полный фид — в канале {CH}.",
-    "es": f"\n\n🍒 Avisos de resultados + feed completo — en el canal {CH}.",
+    "en": "\n\n🍒 Get these by email — subscribe below.",
+    "ru": "\n\n🍒 Получай это на почту — подпишись ниже.",
+    "es": "\n\n🍒 Recibí esto por email — suscribite abajo.",
 }
 
 JOIN_PROMPT = {
-    "en": "🍒 *Subscribe to the channel*\n\nFull feed, breaking drops and live-score pushes — free. Tap subscribe, then come back and check access. 👇",
-    "ru": "🍒 *Подписывайся на канал*\n\nПолный фид, мгновенные дропы и пуши со счётом — бесплатно. Нажми «Подписаться», затем вернись и проверь доступ. 👇",
-    "es": "🍒 *Suscribite al canal*\n\nFeed completo, novedades y avisos de resultados — gratis. Tocá suscribirte, después volvé y verificá el acceso. 👇",
+    "en": "🍒 *Get the email feed*\n\nPick topics, drop your email — that's it. 👇",
+    "ru": "🍒 *Получай фид на почту*\n\nВыбери темы, укажи email — всё. 👇",
+    "es": "🍒 *Recibí el feed por email*\n\nElegí temas, dejá tu email — listo. 👇",
 }
+
 JOIN_CHECK_BTN = {"en": "✅ I subscribed", "ru": "✅ Я подписался", "es": "✅ Ya me suscribí"}
 JOIN_OK = {
-    "en": "✅ Done — access unlocked. The full feed is live in the channel.",
-    "ru": "✅ Готово — доступ открыт. Полный фид уже в канале.",
-    "es": "✅ Listo — acceso desbloqueado. El feed completo está en el canal.",
+    "en": "✅ Done — check your inbox for the confirmation.",
+    "ru": "✅ Готово — проверь почту, там письмо с подтверждением.",
+    "es": "✅ Listo — revisá tu inbox para confirmar.",
 }
 JOIN_NOT_YET = {
-    "en": "🔒 Don't see your subscription yet. Join the channel and tap “I subscribed” again.",
-    "ru": "🔒 Пока не вижу подписки. Подпишись на канал и нажми «Я подписался» ещё раз.",
-    "es": "🔒 Todavía no veo tu suscripción. Unite al canal y tocá «Ya me suscribí» de nuevo.",
+    "en": "Didn't get the email? Try again or check your spam folder.",
+    "ru": "Письмо не пришло? Попробуй ещё раз или проверь папку «Спам».",
+    "es": "¿No llegó el email? Intentá de nuevo o revisá la carpeta de spam.",
 }
 
 NEWS_HEADER = {
-    "en": "🍒 *Latest — Cherry Rush*\n\n",
-    "ru": "🍒 *Свежее — Cherry Rush*\n\n",
-    "es": "🍒 *Lo último — Cherry Rush*\n\n",
+    "en": "🍒 *Latest drops — Cherry Rush*\n\n",
+    "ru": "🍒 *Свежие дропы — Cherry Rush*\n\n",
+    "es": "🍒 *Últimas novedades — Cherry Rush*\n\n",
 }
 NEWS_EMPTY = {
-    "en": "🍒 Feed is spinning up — try again in a moment.",
-    "ru": "🍒 Лента раскручивается — попробуй ещё раз через минуту.",
-    "es": "🍒 El feed está arrancando — probá de nuevo en un momento.",
+    "en": "🍒 Feed is loading — try again in a moment.",
+    "ru": "🍒 Лента загружается — попробуй ещё раз.",
+    "es": "🍒 El feed está cargando — probá de nuevo.",
 }
 NEWS_FOOTER = {
-    "en": f"\n\n🍒 *This is the preview.* The full feed + instant breaking drops run in the channel {CH}.",
-    "ru": f"\n\n🍒 *Это превью.* Полный фид + мгновенные дропы идут в канале {CH}.",
-    "es": f"\n\n🍒 *Esto es la vista previa.* El feed completo + novedades instantáneas corren en el canal {CH}.",
+    "en": "\n\n🍒 *Get the full feed by email* — subscribe below.",
+    "ru": "\n\n🍒 *Получай полный фид на почту* — подпишись ниже.",
+    "es": "\n\n🍒 *Recibí el feed completo por email* — suscribite abajo.",
 }
 NEWS_CAT_LABELS = {
     "en": {"all": "🌐 All", "crypto": "₿ Crypto", "casino": "🏦 Industry", "esports": "🎮 Esports"},
@@ -208,7 +188,14 @@ NEWS_CAT_LABELS = {
     "es": {"all": "🌐 Todo", "crypto": "₿ Cripto", "casino": "🏦 Industria", "esports": "🎮 Esports"},
 }
 LIVE_CHANNEL_LINE = {
-    "en": f"\n\n🍒 _Live-score pushes for these — in the channel {CH}._",
-    "ru": f"\n\n🍒 _Пуши со счётом по этим матчам — в канале {CH}._",
-    "es": f"\n\n🍒 _Avisos de resultados de estos — en el canal {CH}._",
+    "en": "\n\n🍒 _Get email alerts for these matches — subscribe below._",
+    "ru": "\n\n🍒 _Алерты по этим матчам на почту — подпишись ниже._",
+    "es": "\n\n🍒 _Alertas de resultados por email — suscribite abajo._",
 }
+
+WARMUP_FOOTBALL = {
+    "en": ["🍒 The freshest drops land in your inbox first."],
+    "ru": ["🍒 Самые свежие дропы — первыми в твоей почте."],
+    "es": ["🍒 Las novedades más frescas llegan primero a tu inbox."],
+}
+WARMUP_ESPORTS = WARMUP_FOOTBALL
