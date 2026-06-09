@@ -145,7 +145,11 @@ async def subscribe(payload: dict, ip: str = "") -> tuple[int, dict]:
     )
     if rec["status"] == "confirmed":
         return 200, {"ok": True, "status": "already_confirmed"}
-    await _send_confirm(rec)
+    # Single opt-in: immediately confirm and push to ESP (no email confirmation required)
+    emaildb.mark(email.strip().lower(), emailcfg.BRAND_ID, "confirmed")
+    rec["status"] = "confirmed"
+    report = await esp.push_contact(rec)
+    logger.info(f"single-optin confirmed {email} -> {report}")
     return 200, {"ok": True, "status": "pending"}
 
 
