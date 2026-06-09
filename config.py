@@ -17,6 +17,7 @@ from brand import BRAND, CTAMode  # noqa: F401  (CTAMode может пригод
 BOT_TOKEN      = os.environ["BOT_TOKEN"]
 ANTHROPIC_KEY  = os.environ["ANTHROPIC_API_KEY"]
 RAPIDAPI_KEY   = os.environ.get("RAPIDAPI_KEY", "")
+PANDASCORE_KEY = os.environ.get("PANDASCORE_KEY", "")
 
 # ── Идентичность бренда ───────────────────────────────────────────────────────
 BOT_USERNAME = BRAND.bot_username
