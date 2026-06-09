@@ -16,7 +16,6 @@ from brand import BRAND, CTAMode  # noqa: F401  (CTAMode может пригод
 # ── Секреты (только окружение, в код не попадают) ─────────────────────────────
 BOT_TOKEN      = os.environ["BOT_TOKEN"]
 ANTHROPIC_KEY  = os.environ["ANTHROPIC_API_KEY"]
-PANDASCORE_KEY = os.environ.get("PANDASCORE_KEY", "")
 RAPIDAPI_KEY   = os.environ.get("RAPIDAPI_KEY", "")
 
 # ── Идентичность бренда ───────────────────────────────────────────────────────
