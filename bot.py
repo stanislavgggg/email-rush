@@ -25,7 +25,7 @@ from telegram.constants import ParseMode
 from brand import BRAND
 from config import BOT_TOKEN, BOT_USERNAME, DEFAULT_LANG, HOOK_IMAGE, State, TG_LANG_MAP
 from conversation import (
-    handle_message, main_menu,
+    handle_message, handle_web_app_data, main_menu,
     send_channel_join, handle_join_check, JOIN_CHECK_CB,
     handle_news, handle_news_callback, NEWS_CB_PREFIX,
     _open_btn,
@@ -206,6 +206,19 @@ async def cmd_policy(update: Update, context: ContextTypes.DEFAULT_TYPE):
     )
 
 
+# ── web_app_data (мини-апп вызвал sendData → Telegram Ads Action) ─────────────
+
+async def handle_web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    user = update.effective_user
+    u    = get_user(user.id)
+    lang = u.get("lang", _detect_lang(user.language_code))
+    try:
+        await handle_web_app_data(context.bot, user.id, update.effective_chat.id, lang,
+                                  update.message.web_app_data.data)
+    except Exception as e:
+        logger.error(f"web_app_data error user={user.id}: {e}", exc_info=True)
+
+
 # ── Text messages ─────────────────────────────────────────────────────────────
 
 async def handle_text(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -301,6 +314,9 @@ def main():
     app.add_handler(CommandHandler("lang",   cmd_lang))
     app.add_handler(CommandHandler("funnel", cmd_funnel))
     app.add_handler(CallbackQueryHandler(on_callback))
+    # web_app_data — срабатывает когда мини-апп вызывает sendData()
+    # Telegram Ads засчитывает Action именно в этот момент
+    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     async def _error_handler(update, context):

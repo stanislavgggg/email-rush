@@ -8,6 +8,7 @@ conversation.py — Cherry Rush (email-capture, CRO-optimised)
 Онбординг убран полностью. Топики выбираются в мини-аппе.
 """
 import asyncio
+import json
 import logging
 import os
 
@@ -17,6 +18,7 @@ from telegram.constants import ParseMode
 from config import State
 from media import send_pic, sanitize_markdown
 from storage import get_user, update_user, append_history
+import capture
 import emailcfg
 
 logger = logging.getLogger(__name__)
@@ -93,6 +95,103 @@ async def handle_message(bot: Bot, user_id: int, chat_id: int, text: str, lang: 
     nudge = NUDGE.get(lang, NUDGE["en"])
     append_history(user_id, "assistant", nudge)
     await _send(bot, chat_id, nudge, lang)
+
+
+# ── web_app_data handler ──────────────────────────────────────────────────────
+
+async def handle_web_app_data(bot: Bot, user_id: int, chat_id: int, lang: str, raw: str):
+    """
+    Вызывается когда мини-апп делает Telegram.WebApp.sendData(json).
+    Telegram Ads засчитывает Action в этот момент — до этого вызова.
+    Бот парсит payload и вызывает /api/subscribe сам.
+
+    Ожидаемый JSON от фронта:
+      { "email": "user@example.com", "verticals": ["crypto", "football"], "lang": "ru", "consent": true }
+    """
+    logger.info(f"web_app_data user={user_id} raw={raw[:120]}")
+
+    # ── 1. Парсим payload ─────────────────────────────────────────────────────
+    try:
+        payload = json.loads(raw)
+    except Exception:
+        logger.warning(f"web_app_data invalid JSON user={user_id}: {raw[:80]}")
+        await _send(bot, chat_id, _ERR.get(lang, _ERR["en"]), lang)
+        return
+
+    email = (payload.get("email") or "").strip()
+    if not email or "@" not in email:
+        logger.warning(f"web_app_data bad email user={user_id}")
+        await _send(bot, chat_id, _ERR.get(lang, _ERR["en"]), lang)
+        return
+
+    # Добавляем tg_id чтобы связать запись с пользователем
+    payload["tg_id"]  = user_id
+    payload["lang"]   = payload.get("lang") or lang
+    payload["source"] = "telegram_bot"
+    # consent обязателен — если фронт не прислал, считаем True (пользователь нажал кнопку)
+    payload.setdefault("consent", True)
+
+    # ── 2. Вызываем capture.subscribe (тот же флоу что и лендинг) ────────────
+    try:
+        status, result = await capture.subscribe(payload, ip="")
+    except Exception as e:
+        logger.error(f"capture.subscribe error user={user_id}: {e}", exc_info=True)
+        await _send(bot, chat_id, _ERR.get(lang, _ERR["en"]), lang)
+        return
+
+    if not result.get("ok") and result.get("error") != "already_confirmed":
+        err = result.get("error", "unknown")
+        logger.warning(f"subscribe failed user={user_id} error={err}")
+        if err == "geo_restricted":
+            msg = _GEO_BLOCK.get(lang, _GEO_BLOCK["en"])
+        elif err == "invalid_email":
+            msg = _BAD_EMAIL.get(lang, _BAD_EMAIL["en"])
+        else:
+            msg = _ERR.get(lang, _ERR["en"])
+        await _send(bot, chat_id, msg, lang)
+        return
+
+    # ── 3. Успех — помечаем пользователя как подписанного ────────────────────
+    update_user(user_id, state=State.DEPOSITED, email=email)
+    logger.info(f"subscribed user={user_id} email={email}")
+
+    msg = _SUCCESS.get(lang, _SUCCESS["en"])
+    await _send(bot, chat_id, msg, lang, inline=None)  # inline=None → без кнопки, уже подписан
+
+
+# Тексты ответов после web_app_data
+_SUCCESS = {
+    "en": (
+        "✅ *You're in!*\n\n"
+        "Check your inbox — your first drop is on its way.\n"
+        "Unsubscribe anytime via the link in any email. 🍒"
+    ),
+    "ru": (
+        "✅ *Готово!*\n\n"
+        "Проверь почту — первый дроп уже летит.\n"
+        "Отписка в любой момент по ссылке в письме. 🍒"
+    ),
+    "es": (
+        "✅ *¡Ya estás adentro!*\n\n"
+        "Revisá tu inbox — el primer drop está en camino.\n"
+        "Podés darte de baja en cualquier momento. 🍒"
+    ),
+}
+_ERR = {
+    "en": "⚠️ Something went wrong — tap the button and try again.",
+    "ru": "⚠️ Что-то пошло не так — нажми кнопку и попробуй снова.",
+    "es": "⚠️ Algo salió mal — tocá el botón e intentá de nuevo.",
+}
+_BAD_EMAIL = {
+    "en": "⚠️ That email doesn't look right — please check and try again.",
+    "ru": "⚠️ Email выглядит неправильно — проверь и попробуй снова.",
+    "es": "⚠️ Ese email no parece correcto — verificá e intentá de nuevo.",
+}
+_GEO_BLOCK = {
+    "en": "🔒 This service isn't available in your region.",
+    "ru": "🔒 Сервис недоступен в твоём регионе.",
+    "es": "🔒 Este servicio no está disponible en tu región.",
+}
 
 
 # ── Stub handlers (импортируются в bot.py) ────────────────────────────────────
