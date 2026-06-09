@@ -25,6 +25,7 @@ logger = logging.getLogger(__name__)
 
 class BaseESP:
     name = "base"
+    last_error = None  # set to a short string when the most recent push failed
     async def push(self, rec: dict) -> bool:
         raise NotImplementedError
 
@@ -34,6 +35,7 @@ class NoopESP(BaseESP):
     name = "noop"
     PUSHED: list = []
     async def push(self, rec: dict) -> bool:
+        self.last_error = None
         self.PUSHED.append({"email": rec.get("email"), "verticals": rec.get("verticals"),
                             "brand": rec.get("brand")})
         logger.info(f"[esp:noop] would push {rec.get('email')} ({rec.get('verticals')})")
@@ -69,7 +71,9 @@ class MailchimpESP(BaseESP):
             return r.status, r.read()
 
     def _push_sync(self, rec) -> bool:
+        self.last_error = None
         if not self._ok():
+            self.last_error = "not_configured(key/list/dc)"
             logger.error("[esp:mailchimp] not configured (key/list/dc)")
             return False
         email = rec["email"]
@@ -102,9 +106,17 @@ class MailchimpESP(BaseESP):
             return True
         except urllib.error.HTTPError as e:
             body_bytes = e.read()
+            # Вытаскиваем человекочитаемый detail из ответа Mailchimp, если есть.
+            detail = None
+            try:
+                detail = json.loads(body_bytes.decode()).get("detail")
+            except Exception:
+                detail = None
+            self.last_error = f"HTTP {e.code}: {detail or body_bytes[:200]}"
             logger.error(f"[esp:mailchimp] HTTP {e.code}: {body_bytes[:300]}")
             return False
         except Exception as e:
+            self.last_error = f"error: {e}"
             logger.error(f"[esp:mailchimp] error: {e}")
             return False
 
@@ -144,4 +156,5 @@ async def push_contact(rec: dict) -> dict:
     logger.info(f"[esp] routing verticals={raw_v} seg={seg} esp={esp_name}")
     esp = _get(esp_name)
     ok = await esp.push(rec)
-    return {"segment": seg, "esp": esp.name, "ok": ok}
+    return {"segment": seg, "esp": esp.name, "ok": ok,
+            "error": (None if ok else getattr(esp, "last_error", None))}

@@ -143,14 +143,30 @@ async def subscribe(payload: dict, ip: str = "") -> tuple[int, dict]:
         lang=lang, country=country, tg_id=tg_id, consent_text=consent_text,
         consent_ver=emailcfg.CONSENT_VERSION, ip=ip,
     )
-    if rec["status"] == "confirmed":
-        return 200, {"ok": True, "status": "already_confirmed"}
-    # Single opt-in: immediately confirm and push to ESP (no email confirmation required)
-    emaildb.mark(email.strip().lower(), emailcfg.BRAND_ID, "confirmed")
-    rec["status"] = "confirmed"
+
+    email_lc = email.strip().lower()
+    already_confirmed = (rec["status"] == "confirmed")
+
+    # Если контакт уже подтверждён И уже успешно доехал до ESP — нечего делать.
+    if already_confirmed and rec.get("esp_ok"):
+        return 200, {"ok": True, "status": "already_confirmed",
+                     "esp": {"esp": rec.get("esp_name"), "ok": True}}
+
+    # Single opt-in: подтверждаем локально (если ещё не подтверждён),
+    # затем ВСЕГДА пушем в ESP — в т.ч. ре-пуш для записей, где прошлый пуш упал.
+    if not already_confirmed:
+        emaildb.mark(email_lc, emailcfg.BRAND_ID, "confirmed")
+        rec["status"] = "confirmed"
+
     report = await esp.push_contact(rec)
-    logger.info(f"single-optin confirmed {email} -> {report}")
-    return 200, {"ok": True, "status": "confirmed", "esp": report}
+    # Сохраняем результат как источник правды — теперь ре-синк сможет добрать неудачные.
+    emaildb.set_esp_status(email_lc, emailcfg.BRAND_ID,
+                           report.get("esp"), report.get("ok"), report.get("error"))
+    logger.info(f"single-optin {'resync' if already_confirmed else 'confirmed'} "
+                f"{email} -> {report}")
+
+    status_str = "resynced" if already_confirmed else "confirmed"
+    return 200, {"ok": True, "status": status_str, "esp": report}
 
 
 async def confirm(token: str) -> tuple[int, dict]:
@@ -161,6 +177,8 @@ async def confirm(token: str) -> tuple[int, dict]:
         emaildb.mark(rec["email_lc"], rec["brand"], "confirmed")
         rec["status"] = "confirmed"
         report = await esp.push_contact(rec)
+        emaildb.set_esp_status(rec["email_lc"], rec["brand"],
+                               report.get("esp"), report.get("ok"), report.get("error"))
         logger.info(f"confirmed {rec['email']} → {report}")
     reward = _reward_for(rec.get("wrapper") or emailcfg.WRAPPER)
     await _send_welcome(rec, reward)

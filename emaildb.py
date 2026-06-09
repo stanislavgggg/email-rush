@@ -71,8 +71,17 @@ def _pg_init():
             unsub_at      DOUBLE PRECISION,
             created_at    DOUBLE PRECISION,
             updated_at    DOUBLE PRECISION,
+            esp_ok        BOOLEAN,
+            esp_name      TEXT,
+            esp_synced_at DOUBLE PRECISION,
+            esp_error     TEXT,
             UNIQUE (brand, email_lc)
         );""")
+        # Миграция для уже существующих таблиц (колонки добавляются в конец —
+        # порядок совпадает с CREATE выше, поэтому _COLS остаётся валидным).
+        for col, typ in (("esp_ok", "BOOLEAN"), ("esp_name", "TEXT"),
+                         ("esp_synced_at", "DOUBLE PRECISION"), ("esp_error", "TEXT")):
+            c.execute(f"ALTER TABLE email_contacts ADD COLUMN IF NOT EXISTS {col} {typ};")
         c.execute("""
         CREATE TABLE IF NOT EXISTS email_consent_log (
             id       BIGSERIAL PRIMARY KEY,
@@ -85,7 +94,8 @@ def _pg_init():
 
 _COLS = ["id","brand","email","email_lc","status","verticals","source","wrapper","lang",
          "country","tg_id","consent_text","consent_ver","consent_ts","consent_ip",
-         "confirm_token","unsub_token","confirmed_at","unsub_at","created_at","updated_at"]
+         "confirm_token","unsub_token","confirmed_at","unsub_at","created_at","updated_at",
+         "esp_ok","esp_name","esp_synced_at","esp_error"]
 
 def _row_to_dict(row) -> dict:
     d = dict(zip(_COLS, row))
@@ -250,6 +260,47 @@ def erase(email_lc, brand, ip=""):
         _json_db["contacts"].pop(_json_key(brand, email_lc), None)
         _json_save()
     _log(brand, "[erased]", "erase", ip, {})
+
+
+def set_esp_status(email_lc, brand, esp_name, ok, error=None):
+    """Записать результат пуша контакта в ESP. Источник правды для ре-синка."""
+    now = _now()
+    if _USE_PG:
+        _pg_init()
+        with _pg() as c:
+            c.execute("UPDATE email_contacts SET esp_ok=%s, esp_name=%s, "
+                      "esp_synced_at=%s, esp_error=%s, updated_at=%s "
+                      "WHERE brand=%s AND email_lc=%s",
+                      (bool(ok), esp_name, now, (None if ok else (error or "")[:300]),
+                       now, brand, email_lc))
+    else:
+        rec = _json_db["contacts"].get(_json_key(brand, email_lc))
+        if rec:
+            rec["esp_ok"] = bool(ok)
+            rec["esp_name"] = esp_name
+            rec["esp_synced_at"] = now
+            rec["esp_error"] = None if ok else (error or "")[:300]
+            rec["updated_at"] = now
+            _json_save()
+
+
+def pending_esp_sync(brand=None):
+    """Confirmed-контакты, которые ещё НЕ доехали до ESP (esp_ok не True).
+
+    Сюда попадают и старые записи (esp_ok = NULL), и те, у кого пуш падал.
+    """
+    if _USE_PG:
+        _pg_init()
+        with _pg() as c:
+            q = ("SELECT * FROM email_contacts "
+                 "WHERE status='confirmed' AND (esp_ok IS NULL OR esp_ok=FALSE)")
+            args = ()
+            if brand:
+                q += " AND brand=%s"; args = (brand,)
+            return [_row_to_dict(r) for r in c.execute(q, args).fetchall()]
+    return [_json_pub(r) for r in _json_db["contacts"].values()
+            if r["status"] == "confirmed" and not r.get("esp_ok")
+            and (not brand or r["brand"] == brand)]
 
 
 def _log(brand, email_lc, event, ip, meta):
