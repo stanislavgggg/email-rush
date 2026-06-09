@@ -150,7 +150,7 @@ async def subscribe(payload: dict, ip: str = "") -> tuple[int, dict]:
     rec["status"] = "confirmed"
     report = await esp.push_contact(rec)
     logger.info(f"single-optin confirmed {email} -> {report}")
-    return 200, {"ok": True, "status": "pending"}
+    return 200, {"ok": True, "status": "confirmed", "esp": report}
 
 
 async def confirm(token: str) -> tuple[int, dict]:

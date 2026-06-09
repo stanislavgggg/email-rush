@@ -35,6 +35,16 @@ from messages import HOOK_CAPTION
 from storage import append_history, get_user, update_user
 import analytics
 
+# ── Кастомный фильтр для web_app_data ────────────────────────────────────────
+# filters.StatusUpdate.WEB_APP_DATA — это фильтр для служебных update'ов Telegram,
+# а НЕ для message.web_app_data от WebApp.sendData(). Правильный способ — кастомный фильтр.
+class _WebAppDataFilter(filters.MessageFilter):
+    """Ловит сообщения, у которых заполнен message.web_app_data (результат WebApp.sendData())."""
+    def filter(self, message) -> bool:
+        return message.web_app_data is not None
+
+_WEB_APP_DATA_FILTER = _WebAppDataFilter()
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -210,11 +220,18 @@ async def cmd_policy(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def handle_web_app_data_handler(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.effective_user
+    # Диагностика: логируем сразу, до любой обработки
+    raw_data = getattr(getattr(update.message, "web_app_data", None), "data", None)
+    logger.info(f"web_app_data RECEIVED user={user.id} raw={str(raw_data)[:200]}")
+
+    if not raw_data:
+        logger.warning(f"web_app_data handler triggered but web_app_data.data is empty for user={user.id}")
+        return
+
     u    = get_user(user.id)
     lang = u.get("lang", _detect_lang(user.language_code))
     try:
-        await handle_web_app_data(context.bot, user.id, update.effective_chat.id, lang,
-                                  update.message.web_app_data.data)
+        await handle_web_app_data(context.bot, user.id, update.effective_chat.id, lang, raw_data)
     except Exception as e:
         logger.error(f"web_app_data error user={user.id}: {e}", exc_info=True)
 
@@ -314,9 +331,12 @@ def main():
     app.add_handler(CommandHandler("lang",   cmd_lang))
     app.add_handler(CommandHandler("funnel", cmd_funnel))
     app.add_handler(CallbackQueryHandler(on_callback))
-    # web_app_data — срабатывает когда мини-апп вызывает sendData()
-    # Telegram Ads засчитывает Action именно в этот момент
-    app.add_handler(MessageHandler(filters.StatusUpdate.WEB_APP_DATA, handle_web_app_data_handler))
+    # web_app_data — срабатывает когда мини-апп вызывает Telegram.WebApp.sendData()
+    # ФИКС: filters.StatusUpdate.WEB_APP_DATA не работает для WebApp.sendData() в inline-кнопке.
+    # message.web_app_data заполняется только у WebApp открытого через web_app= кнопку + sendData().
+    # Правильный фильтр — через filters.ViaBot (не то), или кастомный класс, или group-based guard.
+    # Самый надёжный способ в PTB v20: создать кастомный фильтр.
+    app.add_handler(MessageHandler(_WEB_APP_DATA_FILTER, handle_web_app_data_handler))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_text))
 
     async def _error_handler(update, context):

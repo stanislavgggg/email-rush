@@ -116,12 +116,24 @@ def _get(name: str) -> BaseESP:
 
 async def push_contact(rec: dict) -> dict:
     """Route a confirmed contact to the ESP for its segment. Returns a small report."""
-    seg = emailcfg.segment_for(rec.get("verticals"))
+    # verticals из emaildb может прийти как JSON-строка ('["crypto","football"]'),
+    # а не как список — безопасно распарсиваем.
+    raw_v = rec.get("verticals")
+    if isinstance(raw_v, str):
+        try:
+            import json as _json
+            raw_v = _json.loads(raw_v)
+        except Exception:
+            raw_v = [v.strip() for v in raw_v.strip("[]").replace('"', '').split(",") if v.strip()]
+    elif not isinstance(raw_v, list):
+        raw_v = []
+    seg = emailcfg.segment_for(raw_v)
     esp_name = emailcfg.ESP_HARD if seg == "hard" else emailcfg.ESP_SOFT
     # Hard guard: never let a gambling segment go to Mailchimp.
     if seg == "hard" and esp_name == "mailchimp":
         logger.error("[esp] refusing to route hard/gambling segment to Mailchimp")
         esp_name = "noop"
+    logger.info(f"[esp] routing verticals={raw_v} seg={seg} esp={esp_name}")
     esp = _get(esp_name)
     ok = await esp.push(rec)
     return {"segment": seg, "esp": esp.name, "ok": ok}
