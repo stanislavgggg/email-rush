@@ -78,23 +78,31 @@ class MailchimpESP(BaseESP):
             "email_address": email,
             "status_if_new": "subscribed",
             "status": "subscribed",
-            "merge_fields": {
-                "BRAND": rec.get("brand", ""),
-                "LANG": rec.get("lang", ""),
-                "COUNTRY": rec.get("country", ""),
-                "SOURCE": rec.get("source", ""),
-                "WRAPPER": rec.get("wrapper", ""),
-            },
         }
+        # Merge fields только если они существуют в audience — не добавляем кастомные,
+        # чтобы не получить 400 "merge field not found". Стандартные FNAME/LNAME не трогаем.
         try:
             self._req("PUT", f"/lists/{self.list_id}/members/{h}", body)
-            # interest tags (verticals) — separate endpoint, tolerant of failure
-            tags = [{"name": v, "status": "active"} for v in rec.get("verticals", [])]
+            logger.info(f"[esp:mailchimp] upserted {email}")
+            # Тэги вертикалей — separate endpoint, падение не критично
+            verticals = rec.get("verticals") or []
+            if isinstance(verticals, str):
+                import json as _json
+                try:
+                    verticals = _json.loads(verticals)
+                except Exception:
+                    verticals = []
+            tags = [{"name": v, "status": "active"} for v in verticals if v]
             if tags:
-                self._req("POST", f"/lists/{self.list_id}/members/{h}/tags", {"tags": tags})
+                try:
+                    self._req("POST", f"/lists/{self.list_id}/members/{h}/tags", {"tags": tags})
+                    logger.info(f"[esp:mailchimp] tagged {email} {tags}")
+                except Exception as tag_err:
+                    logger.warning(f"[esp:mailchimp] tags failed (non-critical): {tag_err}")
             return True
         except urllib.error.HTTPError as e:
-            logger.error(f"[esp:mailchimp] HTTP {e.code}: {e.read()[:200]}")
+            body_bytes = e.read()
+            logger.error(f"[esp:mailchimp] HTTP {e.code}: {body_bytes[:300]}")
             return False
         except Exception as e:
             logger.error(f"[esp:mailchimp] error: {e}")
