@@ -260,7 +260,9 @@ def _html_page(title: str, msg: str, cta_url: str = "") -> bytes:
 
 
 async def handle_subscribe(payload: dict, ip: str) -> tuple[int, bytes]:
+    logger.info(f"[subscribe] email={payload.get('email','?')} verticals={payload.get('verticals')} lang={payload.get('lang')} source={payload.get('source')}")
     code, data = await capture.subscribe(payload, ip)
+    logger.info(f"[subscribe] result code={code} data={data}")
     return code, _json_bytes(data)
 
 
@@ -442,6 +444,21 @@ async def main():
     )
     server = await asyncio.start_server(handle_request, "0.0.0.0", PORT)
     logger.info(f"MetaPlay Mini App API listening on :{PORT}")
+
+    # ── Диагностика ESP/Mailchimp при старте ──────────────────────────────────
+    mc_key  = emailcfg.MAILCHIMP_API_KEY
+    mc_list = emailcfg.MAILCHIMP_LIST_ID
+    mc_dc   = emailcfg.MAILCHIMP_DC or (mc_key.split("-")[-1] if "-" in mc_key else "")
+    logger.info(
+        f"[esp-cfg] ESP_SOFT={emailcfg.ESP_SOFT} ESP_HARD={emailcfg.ESP_HARD} | "
+        f"MAILCHIMP: key={'SET('+mc_key[-4:]+')' if mc_key else 'MISSING'} "
+        f"list={'SET' if mc_list else 'MISSING'} "
+        f"dc={mc_dc or 'MISSING'}"
+    )
+    if emailcfg.ESP_SOFT == "mailchimp" and not all([mc_key, mc_list, mc_dc]):
+        logger.error("[esp-cfg] ESP_SOFT=mailchimp but Mailchimp is not fully configured — contacts will go to noop!")
+    # ─────────────────────────────────────────────────────────────────────────
+
     async with server:
         await server.serve_forever()
 
