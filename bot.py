@@ -51,21 +51,55 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-LOCK_FILE = "/tmp/metaplay_bot.lock"
+LOCK_FILE = "/tmp/email_rush_bot.lock"   # переименовали — чтобы не конфликтовать с остатками от других проектов
 
 
 def _check_lock():
+    """
+    Защита от двойного запуска бота в одном контейнере.
+    Хранит PID + cmdline-fingerprint, чтобы не спутать bot.py с api.py.
+    При завершении по SIGTERM/SIGINT lock удаляется явно.
+    """
+    import signal
+
+    MY_FINGERPRINT = "bot.py"  # часть argv[0] или argv, уникальная для бота
+
     if os.path.exists(LOCK_FILE):
         try:
-            pid = int(open(LOCK_FILE).read().strip())
+            raw = open(LOCK_FILE).read().strip().split(":", 1)
+            pid = int(raw[0])
+            stored_fp = raw[1] if len(raw) > 1 else ""
+            # Проверяем: процесс жив И это именно bot.py (а не api.py с тем же PID)
             os.kill(pid, 0)
-            logger.critical(f"Already running (PID {pid}). Exiting.")
-            sys.exit(1)
-        except (ProcessLookupError, ValueError):
+            try:
+                cmdline = open(f"/proc/{pid}/cmdline").read().replace("\x00", " ")
+                is_bot = MY_FINGERPRINT in cmdline
+            except Exception:
+                is_bot = (stored_fp == MY_FINGERPRINT)
+            if is_bot:
+                logger.critical(f"bot.py already running (PID {pid}). Exiting.")
+                sys.exit(1)
+            else:
+                logger.warning(f"Lock PID {pid} belongs to different process — removing stale lock.")
+                os.remove(LOCK_FILE)
+        except (ProcessLookupError, ValueError, OSError):
+            # Процесс мёртв — lock устарел
             os.remove(LOCK_FILE)
+
     with open(LOCK_FILE, "w") as f:
-        f.write(str(os.getpid()))
-    atexit.register(lambda: os.path.exists(LOCK_FILE) and os.remove(LOCK_FILE))
+        f.write(f"{os.getpid()}:{MY_FINGERPRINT}")
+
+    def _cleanup(*args):
+        try:
+            if os.path.exists(LOCK_FILE):
+                os.remove(LOCK_FILE)
+        except Exception:
+            pass
+        sys.exit(0)
+
+    atexit.register(_cleanup)
+    signal.signal(signal.SIGTERM, _cleanup)
+    signal.signal(signal.SIGINT, _cleanup)
 
 
 _check_lock()

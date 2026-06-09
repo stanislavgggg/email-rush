@@ -2,6 +2,8 @@
 builder = "NIXPACKS"
 
 [deploy]
-startCommand = "python api.py & python bot.py"
+# api.py в фоне, bot.py на переднем плане (Railway следит за ним).
+# trap гарантирует что при SIGTERM оба процесса получат сигнал завершения.
+startCommand = "python api.py & API_PID=$! ; trap 'kill $API_PID 2>/dev/null' EXIT TERM INT ; python bot.py"
 restartPolicyType = "ON_FAILURE"
-restartPolicyMaxRetries = 5
+restartPolicyMaxRetries = 10
